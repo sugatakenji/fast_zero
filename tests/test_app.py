@@ -90,7 +90,7 @@ def test_read_users_with_users(client, user):
     assert response.json() == {'users': [user_schema]}
 
 
-def test_update_user_integrity_error(client, user):
+def test_update_user_integrity_error(client, user, token):
     client.post(
         '/users',
         json={
@@ -102,6 +102,7 @@ def test_update_user_integrity_error(client, user):
     # update no user.username
     response_update = client.put(
         f'/users/{user.id}',
+        headers={'Authorization': f'Bearer {token}'},
         json={
             'username': 'Fulano',
             'email': 'sicrano@test.com',
@@ -114,9 +115,10 @@ def test_update_user_integrity_error(client, user):
     }
 
 
-def test_update_user(client, user):
+def test_update_user(client, user, token):
     reponse = client.put(
-        '/users/1',
+        f'/users/{user.id}',
+        headers={'Authorization': f'Bearer {token}'},
         json={
             'username': 'bob',
             'email': 'bob@example.com',
@@ -131,9 +133,20 @@ def test_update_user(client, user):
     }
 
 
-def test_update_user_not_found(client):
+def test_update_user_not_authorized(client, token):
+    response = client.post(
+        '/users',
+        json={
+            'username': 'juquinha',
+            'email': 'abrahalinconlis@gmail.com',
+            'password': 'asdgaerag',
+        },
+    )
+    user_id = response.json()['id']
+
     response = client.put(
-        '/users/20',
+        f'/users/{user_id}',
+        headers={'Authorization': f'Bearer {token}'},
         json={
             'username': 'bob',
             'email': 'bob@example.com',
@@ -141,21 +154,34 @@ def test_update_user_not_found(client):
         },
     )
 
-    assert response.status_code == HTTPStatus.NOT_FOUND
-    assert response.json() == {'detail': 'User not found'}
+    assert response.status_code == HTTPStatus.FORBIDDEN
+    assert response.json() == {'detail': 'Not enogh permissions'}
 
 
-def test_delete_user(client, user):
-    response = client.delete('/users/1')
+def test_delete_user(client, user, token):
+    response = client.delete(
+        f'/users/{user.id}', headers={'Authorization': f'Bearer {token}'}
+    )
     assert response.status_code == HTTPStatus.OK
     assert response.json() == {'message': 'User deleted'}
 
 
-def test_delete_user_note_foud(client):
-    response = client.delete('/users/0')
+def test_delete_user_not_authtorized(client, token):
+    response = client.post(
+        '/users',
+        json={
+            'username': 'juquinha',
+            'email': 'abrahalinconlis@gmail.com',
+            'password': 'asdgaerag',
+        },
+    )
+    user_id = response.json()['id']
+    response = client.delete(
+        f'/users/{user_id}', headers={'Authorization': f'Bearer {token}'}
+    )
 
-    assert response.status_code == HTTPStatus.NOT_FOUND
-    assert response.json() == {'detail': 'User not found'}
+    assert response.status_code == HTTPStatus.FORBIDDEN
+    assert response.json() == {'detail': 'Not enogh permissions'}
 
 
 def test_read_user_by_id(client, user):
@@ -172,3 +198,31 @@ def test_read_user_by_id_not_found(client, user):
     response = client.get('/users/0')
     assert response.status_code == HTTPStatus.NOT_FOUND
     assert response.json() == {'detail': 'User not found'}
+
+
+def test_get_token(client, user):
+    response = client.post(
+        '/token',
+        data={'username': user.email, 'password': user.clean_password},
+    )
+    token = response.json()
+
+    assert response.status_code == HTTPStatus.OK
+    assert 'access_token' in token
+    assert 'token_type' in token
+
+
+def test_login_for_acces_token_not_valid_user(client):
+    response = client.post(
+        '/token', data={'username': 'invaliduder@test', 'password': '12324rsd'}
+    )
+    assert response.status_code == HTTPStatus.UNAUTHORIZED
+    assert response.json() == {'detail': 'Incorrect email or password'}
+
+
+def test_login_for_acces_token_wrong_password(client, user):
+    response = client.post(
+        '/token', data={'username': user.email, 'password': '12324rsd'}
+    )
+    assert response.status_code == HTTPStatus.UNAUTHORIZED
+    assert response.json() == {'detail': 'Incorrect email or password'}
