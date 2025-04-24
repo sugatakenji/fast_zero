@@ -76,7 +76,7 @@ def test_read_users_with_users(client, user):
     assert response.json() == {'users': [user_schema]}
 
 
-def test_update_user_integrity_error(client, user, token):
+def test_update_user_integrity_error(client, user, other_user, token):
     client.post(
         '/users',
         json={
@@ -90,7 +90,7 @@ def test_update_user_integrity_error(client, user, token):
         f'/users/{user.id}',
         headers={'Authorization': f'Bearer {token}'},
         json={
-            'username': 'Fulano',
+            'username': other_user.username,
             'email': 'sicrano@test.com',
             'password': 'mynewpassword',
         },
@@ -119,19 +119,9 @@ def test_update_user(client, user, token):
     }
 
 
-def test_update_user_not_authorized(client, token):
-    response = client.post(
-        '/users',
-        json={
-            'username': 'juquinha',
-            'email': 'abrahalinconlis@gmail.com',
-            'password': 'asdgaerag',
-        },
-    )
-    user_id = response.json()['id']
-
+def test_update_user_not_authorized(client, other_user, token):
     response = client.put(
-        f'/users/{user_id}',
+        f'/users/{other_user.id}',
         headers={'Authorization': f'Bearer {token}'},
         json={
             'username': 'bob',
@@ -152,18 +142,9 @@ def test_delete_user(client, user, token):
     assert response.json() == {'message': 'User deleted'}
 
 
-def test_delete_user_not_authtorized(client, token):
-    response = client.post(
-        '/users',
-        json={
-            'username': 'juquinha',
-            'email': 'abrahalinconlis@gmail.com',
-            'password': 'asdgaerag',
-        },
-    )
-    user_id = response.json()['id']
+def test_delete_user_not_authtorized(client, token, other_user):
     response = client.delete(
-        f'/users/{user_id}', headers={'Authorization': f'Bearer {token}'}
+        f'/users/{other_user.id}', headers={'Authorization': f'Bearer {token}'}
     )
 
     assert response.status_code == HTTPStatus.FORBIDDEN
@@ -174,8 +155,8 @@ def test_read_user_by_id(client, user):
     response = client.get('/users/1')
     assert response.status_code == HTTPStatus.OK
     assert response.json() == {
-        'username': 'Teste',
-        'email': 'teste@teste.com',
+        'username': user.username,
+        'email': user.email,
         'id': 1,
     }
 
